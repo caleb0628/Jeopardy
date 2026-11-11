@@ -7,14 +7,15 @@
       type="text"
       placeholder="Pick a name!"
       name="name"
-      value="{{name}}"
+      maxlength="20"
+      value="{{name or ''}}"
     />
   </div>
   <div class="join">
-    <input type="text" placeholder="Room Code" name="code" value="{{code}}" />
+    <input type="text" placeholder="Room Code" name="code" maxlength="4" autocapitalize="characters" value="{{code or ''}}" />
     <button type="submit" name="join">Join a Room</button>
   </div>
-  <button type="submit" name="create" class="create-btn">Create a Room</button>
+  <button type="submit" name="create" class="create-btn">Create a Room (Host)</button>
   {% if error %}
   <ul>
     <li>{{error}}</li>

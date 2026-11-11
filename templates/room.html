@@ -3,50 +3,68 @@
 {% block content %}
 <div class="message-box">
   <h2>Room Code: {{code}}</h2>
-  <h2>{{name}}</h2>
-  <!-- Button to send a "buzzed in" message -->
-  <button class="buzzer" type="button" id="buzzerButton" onClick="sendMessage()">
+  <h2>{{name}} &mdash; <span id="score">$0</span></h2>
+  <!-- Button to buzz in -->
+  <button class="buzzer" type="button" id="buzzerButton" onClick="buzz()">
     BUZZ!!!
   </button>
-  <!-- This h2 element will display the countdown timer -->
-  <h2 id="countdown"></h2>
+  <!-- This h2 element tells the player what is going on -->
+  <h2 id="status"></h2>
 </div>
 <script type="text/javascript">
   // Initialize the socket connection
   var socketio = io();
-  
-  // Function to send a message and start the countdown
-  const sendMessage = () => {
-    // Emit a "message" event with the data "buzzed in"
-    socketio.emit("message", "buzzed in");
+  const myName = {{ name|tojson }};
 
-    // Disable the button to prevent multiple clicks
-    document.getElementById('buzzerButton').disabled = true;
+  const buzzerButton = document.getElementById("buzzerButton");
+  const statusElement = document.getElementById("status");
+  const scoreElement = document.getElementById("score");
 
-    // Initialize the countdown timer with 5 seconds
-    let timeLeft = 5;
-    
-    // Get the countdown element to display the time left
-    const countdownElement = document.getElementById('countdown');
-    countdownElement.textContent = `Time left: ${timeLeft} seconds`;
+  const money = (amount) => (amount < 0 ? "-$" : "$") + Math.abs(amount).toLocaleString();
 
-    // Create an interval to update the countdown every second
-    const countdownInterval = setInterval(() => {
-      // Decrement the time left by 1 second
-      timeLeft -= 1;
-
-      // If time is left, update the countdown text
-      if (timeLeft > 0) {
-        countdownElement.textContent = `Time left: ${timeLeft} seconds`;
-      } else {
-        // If no time is left, clear the countdown text and re-enable the button
-        countdownElement.textContent = '';
-        document.getElementById('buzzerButton').disabled = false;
-        
-        // Clear the interval to stop the countdown
-        clearInterval(countdownInterval);
-      }
-    }, 1000); // Set the interval to 1000 milliseconds (1 second)
+  // Function to buzz in. The server decides the order, so everyone gets a fair shot.
+  const buzz = () => {
+    socketio.emit("buzz");
+    buzzerButton.disabled = true;
   };
+
+  // The server sends the latest state every time something changes
+  socketio.on("state", (state) => {
+    const me = state.players.find((player) => player.name === myName);
+    if (me) scoreElement.textContent = money(me.score);
+
+    const place = state.buzzes.indexOf(myName);
+    const lockedOut = state.lockedOut.includes(myName);
+
+    buzzerButton.classList.toggle("first", place === 0);
+    if (place === 0) {
+      buzzerButton.disabled = true;
+      statusElement.textContent = "You buzzed in first!";
+    } else if (place > 0) {
+      buzzerButton.disabled = true;
+      statusElement.textContent = "You are number " + (place + 1) + " in line";
+    } else if (lockedOut) {
+      buzzerButton.disabled = true;
+      statusElement.textContent = "Wrong answer - wait for the next question";
+    } else if (!state.open) {
+      buzzerButton.disabled = true;
+      if (state.clue && state.clue.dailyDouble) statusElement.textContent = "Daily Double - no buzzing";
+      else if (state.clue && state.clue.final) statusElement.textContent = "Final Jeopardy - write down your wager";
+      else statusElement.textContent = "Wait for the next question";
+    } else {
+      buzzerButton.disabled = false;
+      statusElement.textContent = "";
+    }
+  });
+
+  // The host removed this player from the game
+  socketio.on("removed", (data) => {
+    if (data.name === myName) window.location = "/";
+  });
+
+  socketio.on("disconnect", () => {
+    buzzerButton.disabled = true;
+    statusElement.textContent = "Lost connection - trying to reconnect...";
+  });
 </script>
 {% endblock %}
